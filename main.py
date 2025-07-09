@@ -11,31 +11,38 @@ import warnings
 # Suppress warnings for cleaner startup
 warnings.filterwarnings('ignore', category=UserWarning)
 
-from models import AnomalyInput, AnomalyResponse, BatchPredictionResponse
+from models import AnomalyInput, StorageResponse, BatchStorageResponse
 from predictor import predictor
 from database import supabase_client
 from file_processor import FileProcessor
 
 app = FastAPI(
-    title="TAMS Anomaly Prediction API",
+    title="TAMS Anomaly Storage API",
     description="""
-    ## TAMS Anomaly Prediction API
+    ## TAMS Anomaly Storage API
     
-    A comprehensive machine learning API for predicting anomaly criticality scores and managing anomaly data.
+    A machine learning-powered API for storing anomaly data with AI-generated criticality predictions.
     
-    ### Features:
-    * **Single Anomaly Prediction**: Predict scores for individual anomalies
-    * **Batch Prediction**: Process multiple anomalies at once
+    ### Main Features:
+    * **Single Anomaly Storage**: Store individual anomalies with AI predictions
+    * **Batch Storage**: Process multiple anomalies at once
     * **File Upload**: Support for CSV and Excel file processing
     * **Database Integration**: Automatic storage in Supabase
     * **AI Scoring**: Predicts Fiabilité Intégrité, Disponibilité, and Process Safety scores
     
-    ### Input Data:
-    The API requires equipment number, system name, and description for predictions.
+    ### Storage Workflow:
+    1. Submit anomaly data via API
+    2. AI automatically generates criticality scores
+    3. Data is stored in database with predictions
+    4. Receive confirmation of successful storage
     
     ### Scoring System:
     * Each metric is scored from 1-5 (1=low risk, 5=high risk)
     * Criticality level is the sum of all three scores (3-15)
+    * All anomalies are stored with status 'nouvelle'
+    
+    ### Data Retrieval:
+    Use your Supabase client directly to retrieve stored data and predictions.
     """,
     version="1.0.0",
     contact={
@@ -84,20 +91,23 @@ async def root():
     
     Returns the API status and version information.
     """
-    return {"message": "TAMS Anomaly Prediction API is running", "version": "1.0.0"}
+    return {"message": "TAMS Anomaly Storage API is running", "version": "1.0.0"}
 
-@app.post("/predict/single", response_model=AnomalyResponse, tags=["Predictions"])
-async def predict_single_anomaly(anomaly: AnomalyInput):
+@app.post("/store/single", response_model=StorageResponse, tags=["Data Storage"])
+async def store_single_anomaly(anomaly: AnomalyInput):
     """
-    Predict scores for a single anomaly
+    Store a single anomaly with AI predictions
     
-    This endpoint processes a single anomaly and returns AI-predicted scores for:
+    This endpoint processes a single anomaly, generates AI predictions, and stores it in the database.
+    Returns only a confirmation without the prediction results.
+    
+    ### AI Prediction Features:
     - **Fiabilité Intégrité** (Reliability/Integrity): 1-5 scale
     - **Disponibilité** (Availability): 1-5 scale  
     - **Process Safety**: 1-5 scale
     - **Criticité** (Criticality): Sum of above scores (3-15)
     
-    The prediction is automatically stored in the database with status 'nouvelle'.
+    The anomaly is automatically stored with status 'nouvelle'.
     
     ### Required Fields:
     - `num_equipement`: Equipment identification number
@@ -108,6 +118,9 @@ async def predict_single_anomaly(anomaly: AnomalyInput):
     - `date_detection`: Date when anomaly was detected
     - `description_equipement`: Equipment description
     - `section_proprietaire`: Owner section
+    
+    ### Use Case:
+    Perfect for frontend integrations where you only need confirmation of storage.
     """
     try:
         # Validate input data
@@ -125,18 +138,11 @@ async def predict_single_anomaly(anomaly: AnomalyInput):
         if not stored_anomaly:
             raise HTTPException(status_code=500, detail="Failed to store anomaly in database")
         
-        # Return response
-        return AnomalyResponse(
-            id=stored_anomaly['id'],
-            num_equipement=stored_anomaly['num_equipement'],
-            description=stored_anomaly['description'],
-            service=stored_anomaly['service'],
-            status=stored_anomaly['status'],
-            ai_fiabilite_integrite_score=stored_anomaly['ai_fiabilite_integrite_score'],
-            ai_disponibilite_score=stored_anomaly['ai_disponibilite_score'],
-            ai_process_safety_score=stored_anomaly['ai_process_safety_score'],
-            ai_criticality_level=stored_anomaly['ai_criticality_level'],
-            created_at=datetime.fromisoformat(stored_anomaly['created_at'].replace('Z', '+00:00'))
+        # Return simple confirmation
+        return StorageResponse(
+            success=True,
+            message="Anomaly successfully stored",
+            anomaly_id=stored_anomaly['id']
         )
         
     except ValueError as e:
@@ -144,24 +150,26 @@ async def predict_single_anomaly(anomaly: AnomalyInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@app.post("/predict/batch", response_model=List[AnomalyResponse], tags=["Predictions"])
-async def predict_batch_anomalies(anomalies: List[AnomalyInput]):
+@app.post("/store/batch", response_model=BatchStorageResponse, tags=["Data Storage"])
+async def store_batch_anomalies(anomalies: List[AnomalyInput]):
     """
-    Predict scores for multiple anomalies in batch
+    Store multiple anomalies with AI predictions in batch
     
-    Process multiple anomalies at once for efficient bulk predictions.
+    Process multiple anomalies at once, generate predictions, and store them efficiently.
     All anomalies are processed and stored with the same import batch ID.
+    Returns only confirmation without prediction results.
     
     ### Input:
-    Array of anomaly objects, each containing the same fields as single prediction.
+    Array of anomaly objects, each containing the same fields as single storage.
     
     ### Output:
-    Array of prediction results with database IDs and timestamps.
+    Simple confirmation with total count and batch information.
     
     ### Use Cases:
     - Bulk processing of maintenance reports
-    - Historical data analysis
+    - Historical data import
     - System-wide anomaly assessment
+    - Frontend batch operations
     """
     try:
         if not anomalies:
@@ -190,35 +198,25 @@ async def predict_batch_anomalies(anomalies: List[AnomalyInput]):
         if not stored_anomalies:
             raise HTTPException(status_code=500, detail="Failed to store anomalies in database")
         
-        # Return response
-        response_list = []
-        for stored_anomaly in stored_anomalies:
-            response_list.append(AnomalyResponse(
-                id=stored_anomaly['id'],
-                num_equipement=stored_anomaly['num_equipement'],
-                description=stored_anomaly['description'],
-                service=stored_anomaly['service'],
-                status=stored_anomaly['status'],
-                ai_fiabilite_integrite_score=stored_anomaly['ai_fiabilite_integrite_score'],
-                ai_disponibilite_score=stored_anomaly['ai_disponibilite_score'],
-                ai_process_safety_score=stored_anomaly['ai_process_safety_score'],
-                ai_criticality_level=stored_anomaly['ai_criticality_level'],
-                created_at=datetime.fromisoformat(stored_anomaly['created_at'].replace('Z', '+00:00'))
-            ))
-        
-        return response_list
+        # Return simple confirmation
+        return BatchStorageResponse(
+            success=True,
+            message=f"{len(stored_anomalies)} anomalies successfully stored",
+            total_stored=len(stored_anomalies)
+        )
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@app.post("/predict/file/csv", response_model=BatchPredictionResponse, tags=["File Upload"])
-async def predict_from_csv_file(file: UploadFile = File(...)):
+@app.post("/store/file/csv", response_model=BatchStorageResponse, tags=["File Upload"])
+async def store_from_csv_file(file: UploadFile = File(...)):
     """
-    Process CSV file with multiple anomalies
+    Process and store anomalies from CSV file
     
-    Upload a CSV file containing multiple anomaly records for batch processing.
+    Upload a CSV file containing multiple anomaly records for batch processing and storage.
+    Returns only confirmation without prediction results.
     
     ### CSV Format:
     The CSV file should contain these columns:
@@ -236,7 +234,7 @@ async def predict_from_csv_file(file: UploadFile = File(...)):
     - Error handling for malformed data
     
     ### Response:
-    Returns all processed predictions with batch statistics.
+    Simple confirmation with total count and batch ID for tracking.
     """
     try:
         if not file.filename.endswith('.csv'):
@@ -266,37 +264,24 @@ async def predict_from_csv_file(file: UploadFile = File(...)):
         if not stored_anomalies:
             raise HTTPException(status_code=500, detail="Failed to store anomalies in database")
         
-        # Prepare response
-        response_list = []
-        for stored_anomaly in stored_anomalies:
-            response_list.append(AnomalyResponse(
-                id=stored_anomaly['id'],
-                num_equipement=stored_anomaly['num_equipement'],
-                description=stored_anomaly['description'],
-                service=stored_anomaly['service'],
-                status=stored_anomaly['status'],
-                ai_fiabilite_integrite_score=stored_anomaly['ai_fiabilite_integrite_score'],
-                ai_disponibilite_score=stored_anomaly['ai_disponibilite_score'],
-                ai_process_safety_score=stored_anomaly['ai_process_safety_score'],
-                ai_criticality_level=stored_anomaly['ai_criticality_level'],
-                created_at=datetime.fromisoformat(stored_anomaly['created_at'].replace('Z', '+00:00'))
-            ))
-        
-        return BatchPredictionResponse(
-            predictions=response_list,
-            total_processed=len(stored_anomalies),
+        # Return simple confirmation
+        return BatchStorageResponse(
+            success=True,
+            message=f"{len(stored_anomalies)} anomalies successfully stored from CSV file",
+            total_stored=len(stored_anomalies),
             import_batch_id=batch_id
         )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing CSV file: {str(e)}")
 
-@app.post("/predict/file/excel", response_model=BatchPredictionResponse, tags=["File Upload"])
-async def predict_from_excel_file(file: UploadFile = File(...)):
+@app.post("/store/file/excel", response_model=BatchStorageResponse, tags=["File Upload"])
+async def store_from_excel_file(file: UploadFile = File(...)):
     """
-    Process Excel file with multiple anomalies
+    Process and store anomalies from Excel file
     
-    Upload an Excel file (.xlsx or .xls) containing multiple anomaly records.
+    Upload an Excel file (.xlsx or .xls) containing multiple anomaly records for processing and storage.
+    Returns only confirmation without prediction results.
     
     ### Excel Format:
     Same column structure as CSV format. Supports both .xlsx and .xls files.
@@ -335,109 +320,21 @@ async def predict_from_excel_file(file: UploadFile = File(...)):
         if not stored_anomalies:
             raise HTTPException(status_code=500, detail="Failed to store anomalies in database")
         
-        # Prepare response
-        response_list = []
-        for stored_anomaly in stored_anomalies:
-            response_list.append(AnomalyResponse(
-                id=stored_anomaly['id'],
-                num_equipement=stored_anomaly['num_equipement'],
-                description=stored_anomaly['description'],
-                service=stored_anomaly['service'],
-                status=stored_anomaly['status'],
-                ai_fiabilite_integrite_score=stored_anomaly['ai_fiabilite_integrite_score'],
-                ai_disponibilite_score=stored_anomaly['ai_disponibilite_score'],
-                ai_process_safety_score=stored_anomaly['ai_process_safety_score'],
-                ai_criticality_level=stored_anomaly['ai_criticality_level'],
-                created_at=datetime.fromisoformat(stored_anomaly['created_at'].replace('Z', '+00:00'))
-            ))
-        
-        return BatchPredictionResponse(
-            predictions=response_list,
-            total_processed=len(stored_anomalies),
+        # Return simple confirmation
+        return BatchStorageResponse(
+            success=True,
+            message=f"{len(stored_anomalies)} anomalies successfully stored from Excel file",
+            total_stored=len(stored_anomalies),
             import_batch_id=batch_id
         )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing Excel file: {str(e)}")
 
-@app.get("/anomalies/{anomaly_id}", response_model=AnomalyResponse, tags=["Data Retrieval"])
-async def get_anomaly(anomaly_id: str):
-    """
-    Get a specific anomaly by ID
-    
-    Retrieve detailed information about a specific anomaly using its unique identifier.
-    
-    ### Parameters:
-    - `anomaly_id`: UUID of the anomaly record
-    
-    ### Returns:
-    Complete anomaly record with all AI predictions and metadata.
-    """
-    try:
-        anomaly = await supabase_client.get_anomaly_by_id(anomaly_id)
-        
-        if not anomaly:
-            raise HTTPException(status_code=404, detail="Anomaly not found")
-        
-        return AnomalyResponse(
-            id=anomaly['id'],
-            num_equipement=anomaly['num_equipement'],
-            description=anomaly['description'],
-            service=anomaly['service'],
-            status=anomaly['status'],
-            ai_fiabilite_integrite_score=anomaly['ai_fiabilite_integrite_score'],
-            ai_disponibilite_score=anomaly['ai_disponibilite_score'],
-            ai_process_safety_score=anomaly['ai_process_safety_score'],
-            ai_criticality_level=anomaly['ai_criticality_level'],
-            created_at=datetime.fromisoformat(anomaly['created_at'].replace('Z', '+00:00'))
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching anomaly: {str(e)}")
-
-@app.get("/anomalies", response_model=List[AnomalyResponse], tags=["Data Retrieval"])
-async def get_anomalies(limit: int = 100, offset: int = 0):
-    """
-    Get a list of anomalies with pagination
-    
-    Retrieve a paginated list of anomaly records from the database.
-    
-    ### Parameters:
-    - `limit`: Maximum number of records to return (default: 100, max: 1000)
-    - `offset`: Number of records to skip for pagination (default: 0)
-    
-    ### Pagination:
-    Use `offset` and `limit` to implement pagination:
-    - Page 1: offset=0, limit=100
-    - Page 2: offset=100, limit=100
-    - Page 3: offset=200, limit=100
-    
-    ### Returns:
-    Array of anomaly records ordered by creation date (newest first).
-    """
-    try:
-        anomalies = await supabase_client.get_anomalies(limit=limit, offset=offset)
-        
-        response_list = []
-        for anomaly in anomalies:
-            response_list.append(AnomalyResponse(
-                id=anomaly['id'],
-                num_equipement=anomaly['num_equipement'],
-                description=anomaly['description'],
-                service=anomaly['service'],
-                status=anomaly['status'],
-                ai_fiabilite_integrite_score=anomaly['ai_fiabilite_integrite_score'],
-                ai_disponibilite_score=anomaly['ai_disponibilite_score'],
-                ai_process_safety_score=anomaly['ai_process_safety_score'],
-                ai_criticality_level=anomaly['ai_criticality_level'],
-                created_at=datetime.fromisoformat(anomaly['created_at'].replace('Z', '+00:00'))
-            ))
-        
-        return response_list
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching anomalies: {str(e)}")
-
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    except ImportError:
+        print("uvicorn not available. Install with: pip install uvicorn")
+        print("Or run with: python -m uvicorn main:app --host 0.0.0.0 --port 8000")

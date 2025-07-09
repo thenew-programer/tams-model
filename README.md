@@ -1,52 +1,113 @@
-# TAMS Anomaly Prediction API
+# TAMS Anomaly Storage API
 
-A FastAPI backend service that uses machine learning to predict anomaly criticality scores and stores them in a Supabase database.
+A FastAPI-based service for storing anomaly data with AI-generated criticality predictions in Supabase database.
+
+## Overview
+
+This API processes anomaly data, generates AI-powered criticality scores, and stores everything in a Supabase database. The service focuses on **data storage** rather than returning predictions, making it perfect for frontend integrations that need confirmation of successful storage.
 
 ## Features
 
-- **Single Anomaly Prediction**: Predict scores for individual anomalies
-- **Batch Prediction**: Predict scores for multiple anomalies at once
-- **File Upload Support**: Process CSV and Excel files containing multiple anomalies
-- **Supabase Integration**: Automatically store predictions in the database
-- **RESTful API**: Clean and documented API endpoints
+- **Single Anomaly Storage**: Store individual anomalies with instant AI analysis
+- **Batch Processing**: Handle multiple anomalies efficiently  
+- **File Upload Support**: Process CSV and Excel files
+- **AI-Powered Scoring**: Automatic prediction of criticality scores
+- **Database Integration**: Seamless Supabase storage with error handling
+- **Storage Confirmation**: Simple success/failure responses for easy frontend integration
 
-## Setup
+## AI Scoring System
 
-### 1. Environment Setup
+Each anomaly receives AI-generated scores for:
 
-First, make sure you have Python 3.8+ installed. Then install the dependencies:
+- **Fiabilité Intégrité** (Reliability/Integrity): 1-5 scale
+- **Disponibilité** (Availability): 1-5 scale  
+- **Process Safety**: 1-5 scale
+- **Criticité** (Criticality): Sum of above scores (3-15)
+
+## API Endpoints
+
+### Storage Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/store/single` | Store single anomaly |
+| `POST` | `/store/batch` | Store multiple anomalies |
+| `POST` | `/store/file/csv` | Upload & store CSV file |
+| `POST` | `/store/file/excel` | Upload & store Excel file |
+
+### Data Retrieval
+
+Data retrieval is handled directly through your Supabase client, providing you with full control and flexibility.
+
+### Documentation
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/docs` | Swagger UI documentation |
+| `GET` | `/redoc` | ReDoc documentation |
+| `GET` | `/api-docs` | Custom HTML documentation |
+
+## Quick Start
+
+### 1. Setup Environment
 
 ```bash
+# Clone or copy the project files
+cd tams-model
+
+# Create environment file
+cp .env.example .env
+
+# Edit .env with your Supabase credentials
+```
+
+### 2. Database Setup
+
+Follow the instructions in [`DATABASE_SETUP.md`](DATABASE_SETUP.md) to set up your Supabase database.
+
+### 3. Run with Docker (Recommended)
+
+```bash
+# Start the service
+docker-compose up --build
+
+# API will be available at http://localhost:8000
+```
+
+### 4. Run Locally
+
+```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Start the service
+python main.py
+
+# Or with uvicorn
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2. Environment Variables
+## Frontend Integration
 
-Create a `.env` file in the root directory with your Supabase credentials:
+For complete frontend integration examples, see [`FRONTEND_INTEGRATION.md`](FRONTEND_INTEGRATION.md).
 
-```env
-SUPABASE_URL=your_supabase_url_here
-SUPABASE_KEY=your_supabase_anon_key_here
-SUPABASE_ROLE_KEY=your_supabase_service_role_key_here
+### Quick Example
+
+```javascript
+// Store a single anomaly
+const response = await fetch('http://localhost:8000/store/single', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        num_equipement: "EQ001",
+        systeme: "Hydraulic", 
+        description: "Pressure drop detected"
+    })
+});
+
+const result = await response.json();
+console.log(result); // { success: true, message: "...", anomaly_id: "..." }
 ```
-
-**Note:** The API uses `SUPABASE_ROLE_KEY` (service role key) to bypass Row Level Security (RLS) authentication rules for server-side operations. This provides full database access required for the anomaly prediction service.
-
-### 3. Model Requirements
-
-Ensure your trained model file `tams-prediction-model.pkl` is in the `ml_models/` directory.
-
-### 4. Start the Server
-
-```bash
-# Make the start script executable
-chmod +x start.sh
-
-# Run the server
-./start.sh
-```
-
-Or manually:
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload

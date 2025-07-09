@@ -82,46 +82,6 @@ class SupabaseClient:
             # This allows the system to work even without the import_batches table
             print(f"Warning: Could not create import batch record: {str(e)}")
             return str(uuid.uuid4())
-    
-    async def get_anomaly_by_id(self, anomaly_id: str) -> Optional[Dict[str, Any]]:
-        """Get a single anomaly by ID"""
-        try:
-            result = self.supabase.table('anomalies').select("*").eq('id', anomaly_id).execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            raise Exception(f"Error fetching anomaly: {str(e)}")
-    
-    async def get_anomalies(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Get a list of anomalies with pagination"""
-        try:
-            result = self.supabase.table('anomalies').select("*").range(offset, offset + limit - 1).execute()
-            return result.data if result.data else []
-        except Exception as e:
-            raise Exception(f"Error fetching anomalies: {str(e)}")
-    
-    async def ensure_import_batches_table(self) -> bool:
-        """Ensure the import_batches table exists, create if needed"""
-        try:
-            # Try to create the import_batches table if it doesn't exist
-            create_table_sql = """
-            CREATE TABLE IF NOT EXISTS import_batches (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                filename text NOT NULL,
-                total_records integer NOT NULL DEFAULT 0,
-                processed_records integer DEFAULT 0,
-                status text DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-                error_message text,
-                created_at timestamp with time zone DEFAULT now(),
-                completed_at timestamp with time zone
-            );
-            """
-            
-            # Execute the SQL - this will work with service role key
-            result = self.supabase.rpc('exec_sql', {'sql': create_table_sql}).execute()
-            return True
-        except Exception as e:
-            print(f"Warning: Could not ensure import_batches table exists: {str(e)}")
-            return False
 
 # Global instance
 supabase_client = SupabaseClient()

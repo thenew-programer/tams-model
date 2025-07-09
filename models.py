@@ -24,6 +24,38 @@ class AnomalyInput(BaseModel):
             }
         }
 
+class StorageResponse(BaseModel):
+    """Simple response model for storage operations"""
+    success: bool = Field(True, description="Indicates if the operation was successful")
+    message: str = Field(..., description="Success or error message")
+    anomaly_id: str = Field(..., description="ID of the stored anomaly")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "Anomaly successfully stored",
+                "anomaly_id": "123e4567-e89b-12d3-a456-426614174000"
+            }
+        }
+
+class BatchStorageResponse(BaseModel):
+    """Simple response model for batch storage operations"""
+    success: bool = Field(True, description="Indicates if the operation was successful")
+    message: str = Field(..., description="Success or error message")
+    total_stored: int = Field(..., description="Number of anomalies successfully stored")
+    import_batch_id: Optional[str] = Field(None, description="Batch ID for file uploads")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "5 anomalies successfully stored",
+                "total_stored": 5,
+                "import_batch_id": "batch-123e4567-e89b-12d3-a456-426614174000"
+            }
+        }
+
 class AnomalyPrediction(BaseModel):
     num_equipement: str
     systeme: str
