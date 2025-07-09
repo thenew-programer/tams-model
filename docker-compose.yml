@@ -11,13 +11,3 @@ services:
     volumes:
       - ./ml_models:/app/ml_models
     restart: unless-stopped
-
-  # Optional: Add a simple frontend for testing
-  # nginx:
-  #   image: nginx:alpine
-  #   ports:
-  #     - "80:80"
-  #   volumes:
-  #     - ./frontend:/usr/share/nginx/html
-  #   depends_on:
-  #     - tams-api
