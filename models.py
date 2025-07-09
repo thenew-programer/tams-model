@@ -13,7 +13,7 @@ class AnomalyInput(BaseModel):
     section_proprietaire: Optional[str] = Field(None, description="Owner section", example="Maintenance")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "num_equipement": "EQ001",
                 "systeme": "Hydraulic",
@@ -47,7 +47,7 @@ class AnomalyResponse(BaseModel):
     created_at: datetime = Field(..., description="Record creation timestamp")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "num_equipement": "EQ001",
@@ -69,7 +69,7 @@ class BatchPredictionResponse(BaseModel):
     import_batch_id: str = Field(..., description="Unique identifier for this import batch")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "predictions": [
                     {

@@ -6,6 +6,10 @@ from typing import List, Dict, Any
 import uuid
 from datetime import datetime
 import os
+import warnings
+
+# Suppress warnings for cleaner startup
+warnings.filterwarnings('ignore', category=UserWarning)
 
 from models import AnomalyInput, AnomalyResponse, BatchPredictionResponse
 from predictor import predictor

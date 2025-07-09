@@ -1,10 +1,34 @@
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.preprocessing import LabelEncoder
-from sklearn.feature_extraction.text import CountVectorizer
-from typing import List, Dict, Any, Union
+import warnings
 import os
+from typing import List, Dict, Any, Union
+
+# Suppress scikit-learn version warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+
+# Try to import dependencies with graceful fallback
+try:
+    import pandas as pd
+    import numpy as np
+    import joblib
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.feature_extraction.text import CountVectorizer
+    DEPENDENCIES_AVAILABLE = True
+    print("All ML dependencies loaded successfully")
+except ImportError as e:
+    print(f"ML dependencies not fully available: {e}")
+    print("Using simplified prediction logic")
+    DEPENDENCIES_AVAILABLE = False
+    
+    # Create minimal fallback classes
+    class pd:
+        @staticmethod
+        def DataFrame(data):
+            return data
+    
+    class np:
+        @staticmethod
+        def array(data):
+            return data
 
 class TAMSPredictor:
     def __init__(self, model_path: str = None):
@@ -14,66 +38,79 @@ class TAMSPredictor:
         self.model = None
         self.model_loaded = False
         
+        if not DEPENDENCIES_AVAILABLE:
+            print("ML dependencies not available, using rule-based prediction logic only")
+            return
+        
         try:
-            # Load the trained model
+            # Load the trained model with warnings suppressed
             if os.path.exists(model_path):
-                self.model = joblib.load(model_path)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    self.model = joblib.load(model_path)
                 self.model_loaded = True
                 print(f"Model loaded successfully from {model_path}")
             else:
                 print(f"Warning: Model file not found at {model_path}")
-                print("Using fallback prediction logic")
+                print("Using rule-based prediction logic")
                 
         except Exception as e:
             print(f"Warning: Error loading model: {str(e)}")
-            print("Using fallback prediction logic")
+            print("Using rule-based prediction logic")
     
-    def _prepare_features(self, data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> np.ndarray:
+    def _prepare_features(self, data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Any:
         """Prepare features for prediction"""
+        if not DEPENDENCIES_AVAILABLE:
+            return data  # Return raw data if dependencies not available
+            
         if isinstance(data, dict):
             data = [data]
         
-        df = pd.DataFrame(data)
-        
-        # Fill missing values
-        df = df.fillna("unknown")
-        
-        # For new data, we need to handle encoding differently
-        # In a production system, you'd save the encoders during training
-        required_cols = ["systeme", "description"]
-        
-        # Simple encoding for demo - in production, use saved encoders
-        numeric_features = []
-        for col in ["systeme"]:
-            if col in df.columns:
-                # Simple hash-based encoding for unseen categories
-                encoded = df[col].apply(lambda x: hash(str(x)) % 1000)
-                numeric_features.append(encoded.values.reshape(-1, 1))
-        
-        # Text vectorization for description
-        if "description" in df.columns:
-            # For demo, use simple bag of words
-            descriptions = df["description"].fillna("").astype(str)
+        try:
+            df = pd.DataFrame(data)
             
-            # Create a simple vectorization
-            vocab_size = 100
-            text_features = np.zeros((len(descriptions), vocab_size))
+            # Fill missing values
+            df = df.fillna("unknown")
             
-            for i, desc in enumerate(descriptions):
-                words = desc.lower().split()[:vocab_size]
-                for j, word in enumerate(words):
-                    if j < vocab_size:
-                        text_features[i, j] = hash(word) % 100
-        else:
-            text_features = np.zeros((len(df), 100))
-        
-        # Combine features
-        if numeric_features:
-            X = np.concatenate([np.hstack(numeric_features), text_features], axis=1)
-        else:
-            X = text_features
-        
-        return X
+            # For new data, we need to handle encoding differently
+            # In a production system, you'd save the encoders during training
+            required_cols = ["systeme", "description"]
+            
+            # Simple encoding for demo - in production, use saved encoders
+            numeric_features = []
+            for col in ["systeme"]:
+                if col in df.columns:
+                    # Simple hash-based encoding for unseen categories
+                    encoded = df[col].apply(lambda x: hash(str(x)) % 1000)
+                    numeric_features.append(encoded.values.reshape(-1, 1))
+            
+            # Text vectorization for description
+            if "description" in df.columns:
+                # For demo, use simple bag of words
+                descriptions = df["description"].fillna("").astype(str)
+                
+                # Create a simple vectorization
+                vocab_size = 100
+                text_features = np.zeros((len(descriptions), vocab_size))
+                
+                for i, desc in enumerate(descriptions):
+                    words = desc.lower().split()[:vocab_size]
+                    for j, word in enumerate(words):
+                        if j < vocab_size:
+                            text_features[i, j] = hash(word) % 100
+            else:
+                text_features = np.zeros((len(df), 100))
+            
+            # Combine features
+            if numeric_features:
+                X = np.concatenate([np.hstack(numeric_features), text_features], axis=1)
+            else:
+                X = text_features
+            
+            return X
+        except Exception as e:
+            print(f"Feature preparation error: {e}")
+            return data
     
     def _fallback_prediction(self, anomaly_data: Dict[str, Any]) -> Dict[str, int]:
         """Fallback prediction when model is not available"""
@@ -122,7 +159,7 @@ class TAMSPredictor:
     def predict_single(self, anomaly_data: Dict[str, Any]) -> Dict[str, int]:
         """Predict scores for a single anomaly"""
         try:
-            if self.model_loaded and self.model is not None:
+            if DEPENDENCIES_AVAILABLE and self.model_loaded and self.model is not None:
                 X = self._prepare_features(anomaly_data)
                 
                 # Make prediction
@@ -153,7 +190,7 @@ class TAMSPredictor:
     def predict_batch(self, anomalies_data: List[Dict[str, Any]]) -> List[Dict[str, int]]:
         """Predict scores for multiple anomalies"""
         try:
-            if self.model_loaded and self.model is not None:
+            if DEPENDENCIES_AVAILABLE and self.model_loaded and self.model is not None:
                 X = self._prepare_features(anomalies_data)
                 
                 # Make predictions
