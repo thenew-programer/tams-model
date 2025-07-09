@@ -1,0 +1,6 @@
+Num_equipement,Systeme,Description,Date de détéction de l'anomalie,Description de l'équipement,Section propriétaire
+EQ001,Hydraulic,Pressure drop detected in main valve,2025-01-01,Main hydraulic valve,Maintenance
+EQ002,Electrical,Motor overheating issue,2025-01-02,Electric motor unit,Electrical
+EQ003,Mechanical,Bearing wear detected,2025-01-03,Main shaft bearing,Mechanical
+EQ004,Pneumatic,Air pressure irregularities,2025-01-04,Pneumatic cylinder,Automation
+EQ005,Control,Sensor calibration drift,2025-01-05,Temperature sensor,Instrumentation
