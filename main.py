@@ -1,14 +1,11 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from typing import List, Dict, Any
+from typing import List
 import uuid
-from datetime import datetime
 import os
 import warnings
 
-# Suppress warnings for cleaner startup
 warnings.filterwarnings('ignore', category=UserWarning)
 
 from models import AnomalyInput, StorageResponse, BatchStorageResponse
@@ -71,19 +68,6 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-@app.get("/api-docs", tags=["Documentation"])
-async def get_api_docs():
-    """
-    Get custom API documentation page
-    
-    Returns a custom HTML documentation page with examples and usage instructions.
-    """
-    static_file = os.path.join(os.path.dirname(__file__), "static", "docs.html")
-    if os.path.exists(static_file):
-        return FileResponse(static_file, media_type="text/html")
-    else:
-        return {"message": "Documentation page not found. Visit /docs for Swagger UI."}
-
 @app.get("/", tags=["Health"])
 async def root():
     """
@@ -95,33 +79,6 @@ async def root():
 
 @app.post("/store/single", response_model=StorageResponse, tags=["Data Storage"])
 async def store_single_anomaly(anomaly: AnomalyInput):
-    """
-    Store a single anomaly with AI predictions
-    
-    This endpoint processes a single anomaly, generates AI predictions, and stores it in the database.
-    Returns only a confirmation without the prediction results.
-    
-    ### AI Prediction Features:
-    - **Fiabilité Intégrité** (Reliability/Integrity): 1-5 scale
-    - **Disponibilité** (Availability): 1-5 scale  
-    - **Process Safety**: 1-5 scale
-    - **Criticité** (Criticality): Sum of above scores (3-15)
-    
-    The anomaly is automatically stored with status 'nouvelle'.
-    
-    ### Required Fields:
-    - `num_equipement`: Equipment identification number
-    - `systeme`: System name (e.g., "Hydraulic", "Electrical")
-    - `description`: Detailed description of the anomaly
-    
-    ### Optional Fields:
-    - `date_detection`: Date when anomaly was detected
-    - `description_equipement`: Equipment description
-    - `section_proprietaire`: Owner section
-    
-    ### Use Case:
-    Perfect for frontend integrations where you only need confirmation of storage.
-    """
     try:
         # Validate input data
         anomaly_data = FileProcessor.validate_anomaly_data(anomaly.dict())

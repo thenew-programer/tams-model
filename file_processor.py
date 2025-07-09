@@ -83,9 +83,11 @@ class FileProcessor:
     def prepare_for_database(anomaly_data: Dict[str, Any], predictions: Dict[str, int]) -> Dict[str, Any]:
         """Prepare anomaly data for database insertion"""
         return {
-            'num_equipement': anomaly_data['num_equipement'],
+            # Map fields to correct database column names
+            'equipement_id': anomaly_data['num_equipement'],  # num_equipement -> equipement_id
             'description': anomaly_data['description'],
-            'service': anomaly_data.get('systeme', ''),
+            'service': anomaly_data.get('section_proprietaire', ''),  # section_proprietaire -> service
+            'system_id': anomaly_data.get('systeme', ''),  # systeme -> system_id
             'status': 'nouvelle',
             'source_origine': 'api',
             'ai_fiabilite_integrite_score': predictions['ai_fiabilite_integrite_score'],

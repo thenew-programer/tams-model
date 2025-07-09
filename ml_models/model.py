@@ -8,12 +8,12 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 import joblib
 
-df = pd.read_csv("Taqathon_data_01072025.csv")
+df = pd.read_excel("Taqathon_data_01072025.xlsx", sheet_name="Oracle")
 df = df.drop(columns=["Date de détéction de l'anomalie", "Section propriétaire"])
 df = df.fillna("unknown")
 
 label_encoders = {}
-for col in ["Num_equipement", "Systeme", "Description de l'équipement", "Section propriétaire"]:
+for col in ["Num_equipement", "Systeme"]:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col])
     label_encoders[col] = le
@@ -22,7 +22,7 @@ vectorizer = CountVectorizer(max_features=100)
 text_features = vectorizer.fit_transform(df["Description"]).toarray()
 
 X = np.concatenate([
-    df[["Systeme", "Description de l'équipement", "Section propriétaire"]].values,
+    df[["Num_equipement", "Systeme"]].values,
     text_features
 ], axis=1)
 
